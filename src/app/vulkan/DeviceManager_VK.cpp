@@ -630,6 +630,7 @@ bool DeviceManager_VK::createDevice()
     vk::PhysicalDeviceFeatures2 physicalDeviceFeatures2;
     // Determine support for Buffer Device Address, the Vulkan 1.2 way
     auto bufferDeviceAddressFeatures = vk::PhysicalDeviceBufferDeviceAddressFeatures();
+    auto vulkan12SupportedFeatures = vk::PhysicalDeviceVulkan12Features();
     // Determine support for aftermath
     auto aftermathPhysicalFeatures = vk::PhysicalDeviceDiagnosticsConfigFeaturesNV();
     // Determine support for mesh and task shaders
@@ -638,6 +639,7 @@ bool DeviceManager_VK::createDevice()
     // Put the user-provided extension structure at the end of the chain
     pNext = m_DeviceParams.physicalDeviceFeatures2Extensions;
     APPEND_EXTENSION(true, bufferDeviceAddressFeatures);
+    APPEND_EXTENSION(true, vulkan12SupportedFeatures);
     APPEND_EXTENSION(aftermathSupported, aftermathPhysicalFeatures);
     APPEND_EXTENSION(meshShaderSupported, meshShaderFeatures);
 
@@ -755,6 +757,7 @@ bool DeviceManager_VK::createDevice()
         .setTimelineSemaphore(true)
         .setShaderSampledImageArrayNonUniformIndexing(true)
         .setBufferDeviceAddress(bufferDeviceAddressFeatures.bufferDeviceAddress)
+        .setShaderFloat16(vulkan12SupportedFeatures.shaderFloat16)
         .setShaderSubgroupExtendedTypes(true)
         .setScalarBlockLayout(true)
         .setPNext(&vulkan11features);
@@ -1162,6 +1165,9 @@ void DeviceManager_VK::DestroyDeviceAndSwapChain()
 
 bool DeviceManager_VK::BeginFrame()
 {
+    if (m_DeviceParams.headlessDevice)
+        return BeginHeadlessFrame();
+
     const auto& semaphore = m_AcquireSemaphores[m_AcquireSemaphoreIndex];
 
     vk::Result res;
@@ -1205,6 +1211,9 @@ bool DeviceManager_VK::BeginFrame()
 
 bool DeviceManager_VK::Present()
 {
+    if (m_DeviceParams.headlessDevice)
+        return PresentHeadlessFrame();
+
     const auto& semaphore = m_PresentSemaphores[m_SwapChainIndex];
 
     m_NvrhiDevice->queueSignalSemaphore(nvrhi::CommandQueue::Graphics, semaphore, 0);

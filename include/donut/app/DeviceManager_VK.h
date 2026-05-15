@@ -90,6 +90,9 @@ protected:
 
     void ResizeSwapChain() override
     {
+        if (m_DeviceParams.headlessDevice)
+            return;
+
         if (m_VulkanDevice)
         {
             destroySwapChain();
@@ -99,20 +102,32 @@ protected:
 
     nvrhi::ITexture* GetCurrentBackBuffer() override
     {
+        if (m_DeviceParams.headlessDevice)
+            return GetHeadlessBackBuffer(GetCurrentHeadlessBackBufferIndex());
+
         return m_SwapChainImages[m_SwapChainIndex].rhiHandle;
     }
     nvrhi::ITexture* GetBackBuffer(uint32_t index) override
     {
+        if (m_DeviceParams.headlessDevice)
+            return GetHeadlessBackBuffer(index);
+
         if (index < m_SwapChainImages.size())
             return m_SwapChainImages[index].rhiHandle;
         return nullptr;
     }
     uint32_t GetCurrentBackBufferIndex() override
     {
+        if (m_DeviceParams.headlessDevice)
+            return GetCurrentHeadlessBackBufferIndex();
+
         return m_SwapChainIndex;
     }
     uint32_t GetBackBufferCount() override
     {
+        if (m_DeviceParams.headlessDevice)
+            return GetHeadlessBackBufferCount();
+
         return uint32_t(m_SwapChainImages.size());
     }
 

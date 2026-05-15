@@ -316,6 +316,8 @@ namespace donut::app
 
         std::vector<nvrhi::FramebufferHandle> m_SwapChainFramebuffers;
         std::vector<nvrhi::FramebufferHandle> m_SwapChainWithDepthFramebuffers;
+        std::vector<nvrhi::TextureHandle> m_HeadlessBackBuffers;
+        uint32_t m_HeadlessBackBufferIndex = 0;
         nvrhi::TextureHandle m_DepthBuffer;
 
         DeviceManager();
@@ -327,6 +329,13 @@ namespace donut::app
         void BackBufferResized();
         void DisplayScaleChanged();
         void CreateDepthBuffer();
+        bool CreateHeadlessBackBuffers();
+        void ReleaseHeadlessBackBuffers();
+        bool BeginHeadlessFrame();
+        bool PresentHeadlessFrame();
+        nvrhi::ITexture* GetHeadlessBackBuffer(uint32_t index);
+        uint32_t GetCurrentHeadlessBackBufferIndex() const;
+        uint32_t GetHeadlessBackBufferCount() const;
 
         void Animate(double elapsedTime, bool windowIsFocused);
         void Render();

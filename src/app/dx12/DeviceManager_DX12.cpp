@@ -551,6 +551,9 @@ void DeviceManager_DX12::ResizeSwapChain()
 
 bool DeviceManager_DX12::BeginFrame()
 {
+    if (m_DeviceParams.headlessDevice)
+        return BeginHeadlessFrame();
+
     DXGI_SWAP_CHAIN_DESC1 newSwapChainDesc;
     DXGI_SWAP_CHAIN_FULLSCREEN_DESC newFullScreenDesc;
     if (SUCCEEDED(m_SwapChain->GetDesc1(&newSwapChainDesc)) && SUCCEEDED(m_SwapChain->GetFullscreenDesc(&newFullScreenDesc)))
@@ -582,11 +585,17 @@ bool DeviceManager_DX12::BeginFrame()
 
 nvrhi::ITexture* DeviceManager_DX12::GetCurrentBackBuffer()
 {
+    if (m_DeviceParams.headlessDevice)
+        return GetHeadlessBackBuffer(GetCurrentHeadlessBackBufferIndex());
+
     return m_RhiSwapChainBuffers[m_SwapChain->GetCurrentBackBufferIndex()];
 }
 
 nvrhi::ITexture* DeviceManager_DX12::GetBackBuffer(uint32_t index)
 {
+    if (m_DeviceParams.headlessDevice)
+        return GetHeadlessBackBuffer(index);
+
     if (index < m_RhiSwapChainBuffers.size())
         return m_RhiSwapChainBuffers[index];
     return nullptr;
@@ -594,16 +603,25 @@ nvrhi::ITexture* DeviceManager_DX12::GetBackBuffer(uint32_t index)
 
 uint32_t DeviceManager_DX12::GetCurrentBackBufferIndex()
 {
+    if (m_DeviceParams.headlessDevice)
+        return GetCurrentHeadlessBackBufferIndex();
+
     return m_SwapChain->GetCurrentBackBufferIndex();
 }
 
 uint32_t DeviceManager_DX12::GetBackBufferCount()
 {
+    if (m_DeviceParams.headlessDevice)
+        return GetHeadlessBackBufferCount();
+
     return m_SwapChainDesc.BufferCount;
 }
 
 bool DeviceManager_DX12::Present()
 {
+    if (m_DeviceParams.headlessDevice)
+        return PresentHeadlessFrame();
+
     if (!m_windowVisible)
         return true;
 

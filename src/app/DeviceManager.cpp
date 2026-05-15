@@ -53,9 +53,11 @@ freely, subject to the following restrictions:
 #include <nvrhi/utils.h>
 
 #include <cstdio>
+#include <algorithm>
 #include <iomanip>
 #include <thread>
 #include <sstream>
+#include <chrono>
 
 #if DONUT_WITH_DX11
 #include <d3d11.h>
@@ -117,6 +119,16 @@ static void ErrorCallback_GLFW(int error, const char *description)
 {
     fprintf(stderr, "GLFW error: %s\n", description);
     exit(1);
+}
+
+static double GetDeviceManagerTime(bool headlessDevice)
+{
+    if (!headlessDevice)
+        return glfwGetTime();
+
+    using Clock = std::chrono::steady_clock;
+    static const auto startTime = Clock::now();
+    return std::chrono::duration<double>(Clock::now() - startTime).count();
 }
 
 static void WindowIconifyCallback_GLFW(GLFWwindow *window, int iconified)
@@ -268,7 +280,15 @@ bool DeviceManager::CreateHeadlessDevice(const DeviceCreationParameters& params)
     if (!CreateInstance(m_DeviceParams))
         return false;
 
-    return CreateDevice();
+    if (!CreateDevice())
+        return false;
+
+    if (!CreateHeadlessBackBuffers())
+        return false;
+
+    BackBufferResized();
+
+    return true;
 }
 
 bool DeviceManager::CreateWindowDeviceAndSwapChain(const DeviceCreationParameters& params, const char *windowTitle)
@@ -501,6 +521,91 @@ void DeviceManager::CreateDepthBuffer()
     m_DepthBuffer = GetDevice()->createTexture(textureDesc);
 }
 
+bool DeviceManager::CreateHeadlessBackBuffers()
+{
+    ReleaseHeadlessBackBuffers();
+
+    if (!GetDevice())
+        return false;
+
+    if (m_DeviceParams.backBufferWidth == 0 || m_DeviceParams.backBufferHeight == 0)
+    {
+        log::error("Cannot create headless back buffers with a zero-sized extent.");
+        return false;
+    }
+
+    uint32_t backBufferCount = std::max(1u, m_DeviceParams.swapChainBufferCount);
+    m_HeadlessBackBuffers.reserve(backBufferCount);
+
+    for (uint32_t index = 0; index < backBufferCount; ++index)
+    {
+        nvrhi::TextureDesc textureDesc = nvrhi::TextureDesc()
+            .setDebugName("Headless Back Buffer")
+            .setWidth(m_DeviceParams.backBufferWidth)
+            .setHeight(m_DeviceParams.backBufferHeight)
+            .setFormat(m_DeviceParams.swapChainFormat)
+            .setDimension(m_DeviceParams.swapChainSampleCount > 1
+                ? nvrhi::TextureDimension::Texture2DMS
+                : nvrhi::TextureDimension::Texture2D)
+            .setSampleCount(m_DeviceParams.swapChainSampleCount)
+            .setSampleQuality(m_DeviceParams.swapChainSampleQuality)
+            .setIsRenderTarget(true)
+            .setInitialState(nvrhi::ResourceStates::RenderTarget)
+            .setKeepInitialState(true);
+
+        nvrhi::TextureHandle texture = GetDevice()->createTexture(textureDesc);
+        if (!texture)
+        {
+            log::error("Failed to create headless back buffer %u.", index);
+            ReleaseHeadlessBackBuffers();
+            return false;
+        }
+
+        m_HeadlessBackBuffers.push_back(texture);
+    }
+
+    m_HeadlessBackBufferIndex = 0;
+    return true;
+}
+
+void DeviceManager::ReleaseHeadlessBackBuffers()
+{
+    m_HeadlessBackBuffers.clear();
+    m_HeadlessBackBufferIndex = 0;
+}
+
+bool DeviceManager::BeginHeadlessFrame()
+{
+    return !m_HeadlessBackBuffers.empty();
+}
+
+bool DeviceManager::PresentHeadlessFrame()
+{
+    if (m_HeadlessBackBuffers.empty())
+        return false;
+
+    m_HeadlessBackBufferIndex = (m_HeadlessBackBufferIndex + 1) % uint32_t(m_HeadlessBackBuffers.size());
+    return true;
+}
+
+nvrhi::ITexture* DeviceManager::GetHeadlessBackBuffer(uint32_t index)
+{
+    if (index < m_HeadlessBackBuffers.size())
+        return m_HeadlessBackBuffers[index];
+
+    return nullptr;
+}
+
+uint32_t DeviceManager::GetCurrentHeadlessBackBufferIndex() const
+{
+    return m_HeadlessBackBufferIndex;
+}
+
+uint32_t DeviceManager::GetHeadlessBackBufferCount() const
+{
+    return uint32_t(m_HeadlessBackBuffers.size());
+}
+
 void DeviceManager::Animate(double elapsedTime, bool windowIsFocused)
 {
     for(auto it : m_vRenderPasses)
@@ -549,7 +654,7 @@ bool DeviceManager::ShouldRenderUnfocused() const
 bool DeviceManager::RunSingleFrame()
 {
     if (m_PreviousFrameTimestamp <= 0.0)
-        m_PreviousFrameTimestamp = glfwGetTime();
+        m_PreviousFrameTimestamp = GetDeviceManagerTime(m_DeviceParams.headlessDevice);
 
 #if DONUT_WITH_STREAMLINE
     StreamlineIntegration::Get().SimStart(*this);
@@ -620,11 +725,14 @@ void DeviceManager::RunMessageLoop()
 
 bool DeviceManager::AnimateRenderPresent()
 {
-    double curTime = glfwGetTime();
+    double curTime = GetDeviceManagerTime(m_DeviceParams.headlessDevice);
     double elapsedTime = curTime - m_PreviousFrameTimestamp;
 
-	JoyStickManager::Singleton().EraseDisconnectedJoysticks();
-	JoyStickManager::Singleton().UpdateAllJoysticks(m_vRenderPasses);
+    if (!m_DeviceParams.headlessDevice)
+    {
+	    JoyStickManager::Singleton().EraseDisconnectedJoysticks();
+	    JoyStickManager::Singleton().UpdateAllJoysticks(m_vRenderPasses);
+    }
 
     if (m_windowVisible && (m_windowIsInFocus || ShouldRenderUnfocused() || m_RequestedRenderUnfocused))
     {
@@ -964,6 +1072,7 @@ void DeviceManager::Shutdown()
     m_SwapChainFramebuffers.clear();
     m_SwapChainWithDepthFramebuffers.clear();
     m_DepthBuffer = nullptr;
+    ReleaseHeadlessBackBuffers();
 
     DestroyDeviceAndSwapChain();
 
