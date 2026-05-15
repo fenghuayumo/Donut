@@ -195,6 +195,13 @@ namespace donut::app
         D3D_FEATURE_LEVEL featureLevel = D3D_FEATURE_LEVEL_11_1;
 #endif
 
+#if DONUT_WITH_DX12
+        // Optional Agility SDK device factory. This is useful for DLL/plugin hosts
+        // (for example Python extension modules) where the main executable cannot
+        // export D3D12SDKVersion/D3D12SDKPath like a normal standalone app.
+        ID3D12DeviceFactory* d3d12DeviceFactory = nullptr;
+#endif
+
 #if DONUT_WITH_VULKAN
         std::vector<std::string> requiredVulkanDeviceExtensions;
         std::vector<std::string> optionalVulkanDeviceExtensions;
@@ -260,6 +267,12 @@ namespace donut::app
         void RemoveRenderPass(IRenderPass *pController);
 
         void RunMessageLoop();
+
+        // Step exactly one frame: poll events, animate, render, present.
+        // Useful for hosts that want to drive the render loop themselves
+        // (e.g. Python extension modules running headless).  Returns the
+        // result of AnimateRenderPresent().
+        bool RunSingleFrame();
 
         // returns the size of the window in screen coordinates
         void GetWindowDimensions(int& width, int& height);

@@ -200,6 +200,19 @@ static std::wstring GetSlInterposerDllLocation()
 {
     wchar_t path[PATH_MAX] = { 0 };
 #ifdef _WIN32
+    HMODULE module = nullptr;
+    if (GetModuleHandleExW(
+            GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+            reinterpret_cast<LPCWSTR>(&GetSlInterposerDllLocation),
+            &module) &&
+        GetModuleFileNameW(module, path, dim(path)) != 0)
+    {
+        auto moduleBasePath = std::filesystem::path(path).parent_path();
+        auto moduleDllPath = moduleBasePath / L"sl.interposer.dll";
+        if (std::filesystem::exists(moduleDllPath))
+            return moduleDllPath.wstring();
+    }
+
     if (GetModuleFileNameW(nullptr, path, dim(path)) == 0)
         return std::wstring();
 #else // _WIN32
@@ -207,8 +220,8 @@ static std::wstring GetSlInterposerDllLocation()
 #endif // _WIN32
 
     auto basePath = std::filesystem::path(path).parent_path();
-    auto dllPath = basePath.wstring().append(L"\\sl.interposer.dll");
-    return dllPath;
+    auto dllPath = basePath / L"sl.interposer.dll";
+    return dllPath.wstring();
 }
 
 StreamlineIntegration& StreamlineIntegration::Get()

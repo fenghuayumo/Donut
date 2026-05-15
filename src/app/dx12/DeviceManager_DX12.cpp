@@ -245,14 +245,25 @@ bool DeviceManager_DX12::CreateDevice()
     }
 
     
-    HRESULT hr = D3D12CreateDevice(
-        m_DxgiAdapter,
-        m_DeviceParams.featureLevel,
-        IID_PPV_ARGS(&m_Device12));
+    HRESULT hr = E_FAIL;
+    if (m_DeviceParams.d3d12DeviceFactory)
+    {
+        hr = m_DeviceParams.d3d12DeviceFactory->CreateDevice(
+            m_DxgiAdapter,
+            m_DeviceParams.featureLevel,
+            IID_PPV_ARGS(&m_Device12));
+    }
+    else
+    {
+        hr = D3D12CreateDevice(
+            m_DxgiAdapter,
+            m_DeviceParams.featureLevel,
+            IID_PPV_ARGS(&m_Device12));
+    }
 
     if (FAILED(hr))
     {
-        donut::log::error("D3D12CreateDevice failed, error code = 0x%08x", hr);
+        donut::log::error("D3D12 device creation failed, error code = 0x%08x", hr);
         return false;
     }
 #if DONUT_WITH_STREAMLINE

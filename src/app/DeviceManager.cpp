@@ -546,6 +546,41 @@ bool DeviceManager::ShouldRenderUnfocused() const
     return false;
 }
 
+bool DeviceManager::RunSingleFrame()
+{
+    if (m_PreviousFrameTimestamp <= 0.0)
+        m_PreviousFrameTimestamp = glfwGetTime();
+
+#if DONUT_WITH_STREAMLINE
+    StreamlineIntegration::Get().SimStart(*this);
+#endif
+
+    if (m_callbacks.beforeFrame) m_callbacks.beforeFrame(*this, m_FrameIndex);
+
+    if (m_Window != nullptr)
+    {
+        glfwPollEvents();
+        if (m_DeviceParams.headlessDevice)
+        {
+            m_windowVisible = true;
+            m_windowIsInFocus = true;
+        }
+        else
+        {
+            UpdateWindowSize();
+        }
+    }
+    else
+    {
+        // Headless device path: pretend the window is visible so that
+        // AnimateRenderPresent() actually animates and renders something.
+        m_windowVisible  = true;
+        m_windowIsInFocus = true;
+    }
+
+    return AnimateRenderPresent();
+}
+
 void DeviceManager::RunMessageLoop()
 {
     m_PreviousFrameTimestamp = glfwGetTime();
