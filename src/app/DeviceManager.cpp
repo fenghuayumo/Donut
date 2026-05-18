@@ -693,14 +693,23 @@ void DeviceManager::RunMessageLoop()
 #if DONUT_WITH_AFTERMATH
     bool dumpingCrash = false;
 #endif
-    while(!glfwWindowShouldClose(m_Window))
+    while(m_Window == nullptr || !glfwWindowShouldClose(m_Window))
     {
 #if DONUT_WITH_STREAMLINE
         StreamlineIntegration::Get().SimStart(*this);
 #endif
         if (m_callbacks.beforeFrame) m_callbacks.beforeFrame(*this, m_FrameIndex);
-        glfwPollEvents();
-        UpdateWindowSize();
+        if (m_Window != nullptr)
+        {
+            glfwPollEvents();
+            UpdateWindowSize();
+        }
+        else
+        {
+            // Headless command-line captures do not create a GLFW window.
+            m_windowVisible = true;
+            m_windowIsInFocus = true;
+        }
         bool presentSuccess = AnimateRenderPresent();
         if (!presentSuccess)
         {
@@ -1114,7 +1123,8 @@ void DeviceManager::SetWindowTitle(const char* title)
     if (m_WindowTitle == title)
         return;
 
-    glfwSetWindowTitle(m_Window, title);
+    if (m_Window != nullptr)
+        glfwSetWindowTitle(m_Window, title);
 
     m_WindowTitle = title;
 }

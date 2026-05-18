@@ -41,9 +41,16 @@ this software is released into the Public Domain.
 #include <donut/core/log.h>
 #include <donut/core/string_utils.h>
 #include <nvrhi/common/misc.h>
-#include <json/json-forwards.h>
+#include <json/json.h>
 
 #include "donut/engine/ShaderFactory.h"
+
+#include <algorithm>
+#include <array>
+#include <cctype>
+#include <cmath>
+#include <cstring>
+#include <sstream>
 
 #if DONUT_WITH_STATIC_SHADERS
 #if DONUT_WITH_DX11
@@ -66,6 +73,195 @@ using namespace donut::vfs;
 using namespace donut::engine;
 
 static SceneLoadingStats g_LoadingStats;
+
+namespace
+{
+    std::string TrimCopy(const std::string& value)
+    {
+        const auto begin = std::find_if_not(value.begin(), value.end(), [](unsigned char ch) {
+            return std::isspace(ch);
+        });
+        const auto end = std::find_if_not(value.rbegin(), value.rend(), [](unsigned char ch) {
+            return std::isspace(ch);
+        }).base();
+        if (begin >= end)
+            return {};
+        return std::string(begin, end);
+    }
+
+    std::string ToLowerCopy(std::string value)
+    {
+        std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
+            return char(std::tolower(ch));
+        });
+        return value;
+    }
+
+    bool IsBuiltinModelReference(const std::string& modelName)
+    {
+        return ToLowerCopy(TrimCopy(modelName)).rfind("builtin:", 0) == 0;
+    }
+
+    std::string NormalizeBuiltinModelName(std::string modelName)
+    {
+        modelName = ToLowerCopy(TrimCopy(modelName));
+        constexpr const char* prefix = "builtin:";
+        if (modelName.rfind(prefix, 0) == 0)
+            modelName.erase(0, std::strlen(prefix));
+
+        for (char& ch : modelName)
+        {
+            if (ch == '-' || ch == ' ')
+                ch = '_';
+        }
+
+        return modelName;
+    }
+
+    struct BuiltinVertex
+    {
+        float3 position;
+        float3 normal;
+        float4 tangent;
+        float2 texcoord;
+    };
+
+    struct BuiltinMeshData
+    {
+        std::string name;
+        std::string materialName;
+        float3 baseColor = 1.0f;
+        std::vector<BuiltinVertex> vertices;
+        std::vector<uint32_t> indices;
+    };
+
+    void AddVertex(BuiltinMeshData& mesh, const float3& position, const float3& normal, const float4& tangent, const float2& texcoord)
+    {
+        mesh.vertices.push_back({ position, normal, tangent, texcoord });
+    }
+
+    void AddQuad(
+        BuiltinMeshData& mesh,
+        const std::array<float3, 4>& positions,
+        const float3& normal,
+        const float4& tangent)
+    {
+        const uint32_t base = uint32_t(mesh.vertices.size());
+        AddVertex(mesh, positions[0], normal, tangent, float2(0.0f, 0.0f));
+        AddVertex(mesh, positions[1], normal, tangent, float2(0.0f, 1.0f));
+        AddVertex(mesh, positions[2], normal, tangent, float2(1.0f, 1.0f));
+        AddVertex(mesh, positions[3], normal, tangent, float2(1.0f, 0.0f));
+        mesh.indices.insert(mesh.indices.end(), { base, base + 1, base + 2, base, base + 2, base + 3 });
+    }
+
+    BuiltinMeshData MakePlaneMesh()
+    {
+        BuiltinMeshData mesh;
+        mesh.name = "BuiltinPlane";
+        mesh.materialName = "Mat_BuiltinPlane";
+        mesh.baseColor = float3(0.72f, 0.72f, 0.66f);
+        AddQuad(mesh, {
+            float3(-3.0f, 0.0f, -3.0f),
+            float3(-3.0f, 0.0f,  3.0f),
+            float3( 3.0f, 0.0f,  3.0f),
+            float3( 3.0f, 0.0f, -3.0f),
+        }, float3(0.0f, 1.0f, 0.0f), float4(1.0f, 0.0f, 0.0f, 1.0f));
+        return mesh;
+    }
+
+    BuiltinMeshData MakeCubeMesh()
+    {
+        BuiltinMeshData mesh;
+        mesh.name = "BuiltinCube";
+        mesh.materialName = "Mat_BuiltinCube";
+        mesh.baseColor = float3(0.1f, 0.42f, 0.95f);
+
+        AddQuad(mesh, { float3(-0.5f, 1.0f, -0.5f), float3(-0.5f, 1.0f,  0.5f), float3( 0.5f, 1.0f,  0.5f), float3( 0.5f, 1.0f, -0.5f) }, float3( 0.0f,  1.0f,  0.0f), float4(1.0f, 0.0f, 0.0f, 1.0f));
+        AddQuad(mesh, { float3(-0.5f, 0.0f, -0.5f), float3( 0.5f, 0.0f, -0.5f), float3( 0.5f, 0.0f,  0.5f), float3(-0.5f, 0.0f,  0.5f) }, float3( 0.0f, -1.0f,  0.0f), float4(1.0f, 0.0f, 0.0f, 1.0f));
+        AddQuad(mesh, { float3(-0.5f, 0.0f,  0.5f), float3( 0.5f, 0.0f,  0.5f), float3( 0.5f, 1.0f,  0.5f), float3(-0.5f, 1.0f,  0.5f) }, float3( 0.0f,  0.0f,  1.0f), float4(1.0f, 0.0f, 0.0f, 1.0f));
+        AddQuad(mesh, { float3(-0.5f, 0.0f, -0.5f), float3(-0.5f, 1.0f, -0.5f), float3( 0.5f, 1.0f, -0.5f), float3( 0.5f, 0.0f, -0.5f) }, float3( 0.0f,  0.0f, -1.0f), float4(1.0f, 0.0f, 0.0f, 1.0f));
+        AddQuad(mesh, { float3( 0.5f, 0.0f, -0.5f), float3( 0.5f, 1.0f, -0.5f), float3( 0.5f, 1.0f,  0.5f), float3( 0.5f, 0.0f,  0.5f) }, float3( 1.0f,  0.0f,  0.0f), float4(0.0f, 0.0f, 1.0f, 1.0f));
+        AddQuad(mesh, { float3(-0.5f, 0.0f, -0.5f), float3(-0.5f, 0.0f,  0.5f), float3(-0.5f, 1.0f,  0.5f), float3(-0.5f, 1.0f, -0.5f) }, float3(-1.0f,  0.0f,  0.0f), float4(0.0f, 0.0f, 1.0f, 1.0f));
+
+        return mesh;
+    }
+
+    BuiltinMeshData MakeSphereMesh()
+    {
+        constexpr float pi = 3.14159265358979323846f;
+        constexpr int rings = 16;
+        constexpr int segments = 32;
+        constexpr float radius = 0.5f;
+
+        BuiltinMeshData mesh;
+        mesh.name = "BuiltinSphere";
+        mesh.materialName = "Mat_BuiltinSphere";
+        mesh.baseColor = float3(0.95f, 0.3f, 0.18f);
+
+        for (int ring = 0; ring <= rings; ++ring)
+        {
+            const float v = float(ring) / float(rings);
+            const float theta = v * pi;
+            const float sinTheta = std::sin(theta);
+            const float cosTheta = std::cos(theta);
+
+            for (int segment = 0; segment <= segments; ++segment)
+            {
+                const float u = float(segment) / float(segments);
+                const float phi = u * 2.0f * pi;
+                const float sinPhi = std::sin(phi);
+                const float cosPhi = std::cos(phi);
+                const float3 normal = float3(sinTheta * cosPhi, cosTheta, sinTheta * sinPhi);
+                const float3 tangent = normalize(float3(-sinPhi, 0.0f, cosPhi));
+                AddVertex(mesh, normal * radius + float3(0.0f, radius, 0.0f), normal, float4(tangent, 1.0f), float2(u, v));
+            }
+        }
+
+        for (int ring = 0; ring < rings; ++ring)
+        {
+            for (int segment = 0; segment < segments; ++segment)
+            {
+                const uint32_t a = uint32_t(ring * (segments + 1) + segment);
+                const uint32_t b = uint32_t((ring + 1) * (segments + 1) + segment);
+                const uint32_t c = b + 1;
+                const uint32_t d = a + 1;
+                mesh.indices.insert(mesh.indices.end(), { a, b, d, d, b, c });
+            }
+        }
+
+        return mesh;
+    }
+
+    std::vector<BuiltinMeshData> MakeBuiltinMeshes(const std::string& builtinName)
+    {
+        const std::string name = NormalizeBuiltinModelName(builtinName);
+        if (name == "plane")
+            return { MakePlaneMesh() };
+        if (name == "cube")
+            return { MakeCubeMesh() };
+        if (name == "sphere")
+            return { MakeSphereMesh() };
+        if (name == "plane_cube" || name == "default" || name == "default_scene")
+            return { MakePlaneMesh(), MakeCubeMesh() };
+
+        donut::log::error("Unknown builtin primitive model '%s'", builtinName.c_str());
+        return {};
+    }
+
+    void AppendMeshToBuffers(const BuiltinMeshData& src, BufferGroup& buffers)
+    {
+        for (const BuiltinVertex& vertex : src.vertices)
+        {
+            buffers.positionData.push_back(vertex.position);
+            buffers.normalData.push_back(vectorToSnorm8(vertex.normal));
+            buffers.tangentData.push_back(vectorToSnorm8(vertex.tangent));
+            buffers.texcoord1Data.push_back(vertex.texcoord);
+        }
+
+        for (uint32_t index : src.indices)
+            buffers.indexData.push_back(index);
+    }
+}
 
 const SceneLoadingStats& Scene::GetLoadingStats()
 {
@@ -157,7 +353,6 @@ bool Scene::LoadWithThreadPool(const std::filesystem::path& sceneFileName, Threa
     {
         std::shared_ptr<SceneGraphNode> rootNode = std::make_shared<SceneGraphNode>();
         rootNode->SetName("SceneRoot");
-        m_SceneGraph->SetRootNode(rootNode);
 
         std::filesystem::path scenePath = sceneFileName.parent_path();
 
@@ -165,20 +360,51 @@ bool Scene::LoadWithThreadPool(const std::filesystem::path& sceneFileName, Threa
         if (!json::LoadFromFile(*m_fs, sceneFileName, documentRoot))
             return false;
 
-        if (documentRoot.isObject())
-        {
-            if (!LoadCustomData(documentRoot, threadPool))
-                return false;
+        return LoadJsonDocument(documentRoot, scenePath, threadPool);
+    }
 
-            LoadModels(documentRoot["models"], scenePath, threadPool);
-            LoadSceneGraph(documentRoot["graph"], rootNode);
-            LoadAnimations(documentRoot["animations"]);
-        }
-        else
-        {
-            log::error("Unrecognized structure of the scene description file.");
+    return true;
+}
+
+bool Scene::LoadFromJsonString(const std::string& sceneJson, const std::filesystem::path& scenePath)
+{
+    g_LoadingStats.ObjectsLoaded = 0;
+    g_LoadingStats.ObjectsTotal = 0;
+
+    Json::CharReaderBuilder readerBuilder;
+    Json::Value documentRoot;
+    std::string errors;
+    std::istringstream stream(sceneJson);
+    if (!Json::parseFromStream(readerBuilder, stream, &documentRoot, &errors))
+    {
+        log::error("Unable to parse inline scene JSON: %s", errors.c_str());
+        return false;
+    }
+
+    return LoadJsonDocument(documentRoot, scenePath, nullptr);
+}
+
+bool Scene::LoadJsonDocument(Json::Value documentRoot, const std::filesystem::path& scenePath, ThreadPool* threadPool)
+{
+    m_SceneGraph = std::make_shared<SceneGraph>();
+
+    std::shared_ptr<SceneGraphNode> rootNode = std::make_shared<SceneGraphNode>();
+    rootNode->SetName("SceneRoot");
+    m_SceneGraph->SetRootNode(rootNode);
+
+    if (documentRoot.isObject())
+    {
+        if (!LoadCustomData(documentRoot, threadPool))
             return false;
-        }
+
+        LoadModels(documentRoot["models"], scenePath, threadPool);
+        LoadSceneGraph(documentRoot["graph"], rootNode);
+        LoadAnimations(documentRoot["animations"]);
+    }
+    else
+    {
+        log::error("Unrecognized structure of the scene description.");
+        return false;
     }
 
     return true;
@@ -224,15 +450,83 @@ void Scene::LoadModels(
     {
         ++g_LoadingStats.ObjectsTotal;
 
-        std::filesystem::path fileName = scenePath / std::filesystem::path(model.asString());
-
-        LoadModelAsync(index, fileName, threadPool);
+        if (model.isString() && IsBuiltinModelReference(model.asString()))
+        {
+            m_Models[index] = LoadBuiltinModel(model.asString());
+            ++g_LoadingStats.ObjectsLoaded;
+        }
+        else if (model.isObject() && model["builtin"].isString())
+        {
+            m_Models[index] = LoadBuiltinModel(model["builtin"].asString());
+            ++g_LoadingStats.ObjectsLoaded;
+        }
+        else
+        {
+            std::filesystem::path fileName = scenePath / std::filesystem::path(model.asString());
+            LoadModelAsync(index, fileName, threadPool);
+        }
 
         ++index;
     }
 
     if (threadPool)
         threadPool->WaitForTasks();
+}
+
+SceneImportResult Scene::LoadBuiltinModel(const std::string& builtinName)
+{
+    SceneImportResult result;
+
+    std::vector<BuiltinMeshData> builtinMeshes = MakeBuiltinMeshes(builtinName);
+    if (builtinMeshes.empty())
+        return result;
+
+    auto buffers = std::make_shared<BufferGroup>();
+    auto mesh = m_SceneTypeFactory->CreateMesh();
+    mesh->name = NormalizeBuiltinModelName(builtinName);
+    mesh->buffers = buffers;
+
+    auto rootNode = std::make_shared<SceneGraphNode>();
+    rootNode->SetName(mesh->name);
+
+    for (const BuiltinMeshData& builtinMesh : builtinMeshes)
+    {
+        auto material = m_SceneTypeFactory->CreateMaterial();
+        material->name = builtinMesh.materialName;
+        material->modelFileName = std::string("builtin:") + NormalizeBuiltinModelName(builtinName);
+        material->baseOrDiffuseColor = builtinMesh.baseColor;
+        material->roughness = 0.65f;
+        material->metalness = 0.0f;
+        material->doubleSided = true;
+
+        const uint32_t indexOffset = uint32_t(buffers->indexData.size()) - mesh->indexOffset;
+        const uint32_t vertexOffset = uint32_t(buffers->positionData.size()) - mesh->vertexOffset;
+
+        AppendMeshToBuffers(builtinMesh, *buffers);
+
+        auto geometry = m_SceneTypeFactory->CreateMeshGeometry();
+        geometry->material = material;
+        geometry->indexOffsetInMesh = indexOffset;
+        geometry->vertexOffsetInMesh = vertexOffset;
+        geometry->numIndices = uint32_t(builtinMesh.indices.size());
+        geometry->numVertices = uint32_t(builtinMesh.vertices.size());
+        geometry->type = MeshGeometryPrimitiveType::Triangles;
+
+        box3 bounds = box3::empty();
+        for (const BuiltinVertex& vertex : builtinMesh.vertices)
+            bounds |= vertex.position;
+
+        geometry->objectSpaceBounds = bounds;
+        mesh->objectSpaceBounds |= bounds;
+        mesh->totalIndices += geometry->numIndices;
+        mesh->totalVertices += geometry->numVertices;
+        mesh->geometries.push_back(geometry);
+    }
+
+    auto meshInstance = m_SceneTypeFactory->CreateMeshInstance(mesh);
+    rootNode->SetLeaf(meshInstance);
+    result.rootNode = rootNode;
+    return result;
 }
 
 void Scene::LoadSceneGraph(const Json::Value& nodeList, const std::shared_ptr<SceneGraphNode>& parent)

@@ -21,8 +21,6 @@
 */
 #pragma once
 
-#if DONUT_WITH_STREAMLINE
-
 // Donut
 #include <donut/engine/View.h>
 #include <donut/core/math/math.h>
@@ -403,4 +401,3 @@ public:
 
 
 } // namespace donut::app
-#endif

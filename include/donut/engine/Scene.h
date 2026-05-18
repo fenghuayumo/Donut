@@ -28,6 +28,7 @@
 #include <memory>
 #include <mutex>
 #include <filesystem>
+#include <string>
 
 namespace Json
 {
@@ -89,6 +90,14 @@ namespace donut::engine
             const std::filesystem::path& scenePath, 
             ThreadPool* threadPool);
 
+        SceneImportResult LoadBuiltinModel(
+            const std::string& builtinName);
+
+        bool LoadJsonDocument(
+            Json::Value documentRoot,
+            const std::filesystem::path& scenePath,
+            ThreadPool* threadPool);
+
         void LoadSceneGraph(const Json::Value& nodeList, const std::shared_ptr<SceneGraphNode>& parent);
         void LoadAnimations(const Json::Value& nodeList);
         
@@ -134,6 +143,7 @@ namespace donut::engine
         bool Load(const std::filesystem::path& jsonFileName);
 
         virtual bool LoadWithThreadPool(const std::filesystem::path& sceneFileName, ThreadPool* threadPool);
+        virtual bool LoadFromJsonString(const std::string& sceneJson, const std::filesystem::path& scenePath = {});
 
         static const SceneLoadingStats& GetLoadingStats();
 
