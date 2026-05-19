@@ -351,9 +351,6 @@ bool Scene::LoadWithThreadPool(const std::filesystem::path& sceneFileName, Threa
     }
     else
     {
-        std::shared_ptr<SceneGraphNode> rootNode = std::make_shared<SceneGraphNode>();
-        rootNode->SetName("SceneRoot");
-
         std::filesystem::path scenePath = sceneFileName.parent_path();
 
         Json::Value documentRoot;
