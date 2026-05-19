@@ -148,6 +148,7 @@ namespace donut::engine
         static const SceneLoadingStats& GetLoadingStats();
 
         [[nodiscard]] std::shared_ptr<SceneGraph> GetSceneGraph() const { return m_SceneGraph; }
+        [[nodiscard]] dm::box3 GetSceneBounds() const;
         [[nodiscard]] nvrhi::IDescriptorTable* GetDescriptorTable() const { return m_DescriptorTable ? m_DescriptorTable->GetDescriptorTable() : nullptr; }
         [[nodiscard]] nvrhi::IBuffer* GetMaterialBuffer() const { return m_MaterialBuffer; }
         [[nodiscard]] nvrhi::IBuffer* GetGeometryBuffer() const { return m_GeometryBuffer; }

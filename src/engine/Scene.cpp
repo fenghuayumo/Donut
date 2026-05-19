@@ -268,6 +268,16 @@ const SceneLoadingStats& Scene::GetLoadingStats()
     return g_LoadingStats;
 }
 
+box3 Scene::GetSceneBounds() const
+{
+    if (!m_SceneGraph || !m_SceneGraph->GetRootNode())
+        return box3::empty();
+
+    const box3& bounds = m_SceneGraph->GetRootNode()->GetGlobalBoundingBox();
+    const bool finite = dm::all(dm::isfinite(bounds.m_mins)) && dm::all(dm::isfinite(bounds.m_maxs));
+    return finite ? bounds : box3::empty();
+}
+
 struct Scene::Resources
 {
     std::vector<MaterialConstants> materialData;
