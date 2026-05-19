@@ -85,6 +85,11 @@ namespace donut::engine
             const std::filesystem::path& fileName,
             ThreadPool* threadPool);
 
+        virtual bool LoadModelFile(
+            const std::filesystem::path& fileName,
+            ThreadPool* threadPool,
+            SceneImportResult& result);
+
         void LoadModels(
             const Json::Value& modelList, 
             const std::filesystem::path& scenePath, 

@@ -427,7 +427,7 @@ void Scene::LoadModelAsync(
         threadPool->AddTask([this, index, threadPool, fileName]()
         {
             SceneImportResult result;
-            m_GltfImporter->Load(fileName, *m_TextureCache, g_LoadingStats, threadPool, result);
+            LoadModelFile(fileName, threadPool, result);
             ++g_LoadingStats.ObjectsLoaded;
             m_Models[index] = result;
         });
@@ -435,10 +435,18 @@ void Scene::LoadModelAsync(
     else
     {
         SceneImportResult result;
-        m_GltfImporter->Load(fileName, *m_TextureCache, g_LoadingStats, threadPool, result);
+        LoadModelFile(fileName, threadPool, result);
         ++g_LoadingStats.ObjectsLoaded;
         m_Models[index] = result;
     }
+}
+
+bool Scene::LoadModelFile(
+    const std::filesystem::path& fileName,
+    ThreadPool* threadPool,
+    SceneImportResult& result)
+{
+    return m_GltfImporter->Load(fileName, *m_TextureCache, g_LoadingStats, threadPool, result);
 }
 
 void Scene::LoadModels(
