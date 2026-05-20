@@ -1158,7 +1158,6 @@ void Scene::CreateMeshBuffers(nvrhi::ICommandList* commandList)
             commandList->beginTrackingBufferState(buffers->indexBuffer, nvrhi::ResourceStates::Common);
 
             commandList->writeBuffer(buffers->indexBuffer, buffers->indexData.data(), buffers->indexData.size() * sizeof(uint32_t));
-            std::vector<uint32_t>().swap(buffers->indexData);
 
             nvrhi::ResourceStates state = nvrhi::ResourceStates::IndexBuffer | nvrhi::ResourceStates::ShaderResource;
 
@@ -1245,56 +1244,48 @@ void Scene::CreateMeshBuffers(nvrhi::ICommandList* commandList)
             {
                 const auto& range = buffers->getVertexBufferRange(VertexAttribute::Position);
                 commandList->writeBuffer(buffers->vertexBuffer, buffers->positionData.data(), range.byteSize, range.byteOffset);
-                std::vector<float3>().swap(buffers->positionData);
             }
 
             if (!buffers->normalData.empty())
             {
                 const auto& range = buffers->getVertexBufferRange(VertexAttribute::Normal);
                 commandList->writeBuffer(buffers->vertexBuffer, buffers->normalData.data(), range.byteSize, range.byteOffset);
-                std::vector<uint32_t>().swap(buffers->normalData);
             }
 
             if (!buffers->tangentData.empty())
             {
                 const auto& range = buffers->getVertexBufferRange(VertexAttribute::Tangent);
                 commandList->writeBuffer(buffers->vertexBuffer, buffers->tangentData.data(), range.byteSize, range.byteOffset);
-                std::vector<uint32_t>().swap(buffers->tangentData);
             }
 
             if (!buffers->texcoord1Data.empty())
             {
                 const auto& range = buffers->getVertexBufferRange(VertexAttribute::TexCoord1);
                 commandList->writeBuffer(buffers->vertexBuffer, buffers->texcoord1Data.data(), range.byteSize, range.byteOffset);
-                std::vector<float2>().swap(buffers->texcoord1Data);
             }
 
             if (!buffers->texcoord2Data.empty())
             {
                 const auto& range = buffers->getVertexBufferRange(VertexAttribute::TexCoord2);
                 commandList->writeBuffer(buffers->vertexBuffer, buffers->texcoord2Data.data(), range.byteSize, range.byteOffset);
-                std::vector<float2>().swap(buffers->texcoord2Data);
             }
 
             if (!buffers->weightData.empty())
             {
                 const auto& range = buffers->getVertexBufferRange(VertexAttribute::JointWeights);
                 commandList->writeBuffer(buffers->vertexBuffer, buffers->weightData.data(), range.byteSize, range.byteOffset);
-                std::vector<float4>().swap(buffers->weightData);
             }
 
             if (!buffers->jointData.empty())
             {
                 const auto& range = buffers->getVertexBufferRange(VertexAttribute::JointIndices);
                 commandList->writeBuffer(buffers->vertexBuffer, buffers->jointData.data(), range.byteSize, range.byteOffset);
-                std::vector<vector<uint16_t, 4>>().swap(buffers->jointData);
             }
 
             if (!buffers->radiusData.empty())
             {
                 const auto& range = buffers->getVertexBufferRange(VertexAttribute::CurveRadius);
                 commandList->writeBuffer(buffers->vertexBuffer, buffers->radiusData.data(), range.byteSize, range.byteOffset);
-                std::vector<float>().swap(buffers->radiusData);
             }
 
             nvrhi::ResourceStates state = nvrhi::ResourceStates::VertexBuffer | nvrhi::ResourceStates::ShaderResource;
