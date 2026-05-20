@@ -611,6 +611,9 @@ void StreamlineIntegration::UpdateFeatureAvailable()
 
 void StreamlineIntegration::Shutdown()
 {
+    if (!m_slInitialized)
+        return;
+
     // Un-set all tags
     sl::ResourceTag inputs[] = 
     {
@@ -630,11 +633,8 @@ void StreamlineIntegration::Shutdown()
     successCheck(slSetTag(m_viewport, inputs, _countof(inputs), nullptr), "slSetTag_clear");
 
     // Shutdown Streamline
-    if (m_slInitialized)
-    {
-        successCheck(slShutdown(), "slShutdown");
-        m_slInitialized = false;
-    }
+    successCheck(slShutdown(), "slShutdown");
+    m_slInitialized = false;
 }
 
 void StreamlineIntegration::SetViewport(uint32_t viewportIndex)

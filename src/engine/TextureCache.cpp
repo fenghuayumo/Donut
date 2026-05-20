@@ -797,8 +797,24 @@ namespace donut::engine
             pPasses->BlitTexture(commandList, tempFramebuffer, texture);
         }
 
-        // Create a staging texture to access the data from the CPU, copy the data into it
-        nvrhi::StagingTextureHandle stagingTexture = device->createStagingTexture(desc, nvrhi::CpuAccessMode::Read);
+        // Create a plain staging texture for CPU readback. Do not inherit
+        // render-target/UAV/typeless flags from intermediate render targets:
+        // Vulkan is stricter about staging image usage than D3D12.
+        nvrhi::TextureDesc stagingDesc = desc;
+        stagingDesc.isRenderTarget = false;
+        stagingDesc.isUAV = false;
+        stagingDesc.isTypeless = false;
+        stagingDesc.initialState = nvrhi::ResourceStates::CopyDest;
+        stagingDesc.keepInitialState = true;
+        stagingDesc.debugName = "SaveTextureToFile Staging";
+
+        nvrhi::StagingTextureHandle stagingTexture = device->createStagingTexture(stagingDesc, nvrhi::CpuAccessMode::Read);
+        if (!stagingTexture)
+        {
+            commandList->close();
+            return false;
+        }
+
         commandList->copyTexture(stagingTexture, nvrhi::TextureSlice(), tempTexture, nvrhi::TextureSlice());
 
         if (textureState != nvrhi::ResourceStates::Unknown)
@@ -809,6 +825,11 @@ namespace donut::engine
 
         commandList->close();
         device->executeCommandList(commandList);
+
+        // Ensure the copy finishes before CPU readback. Callers may invoke this
+        // while the main frame command list is still in flight on the GPU.
+        if (!device->waitForIdle())
+            return false;
 
         // Map the staging texture
         size_t rowPitch = 0;

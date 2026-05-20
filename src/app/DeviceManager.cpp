@@ -657,7 +657,8 @@ bool DeviceManager::RunSingleFrame()
         m_PreviousFrameTimestamp = GetDeviceManagerTime(m_DeviceParams.headlessDevice);
 
 #if DONUT_WITH_STREAMLINE
-    StreamlineIntegration::Get().SimStart(*this);
+    if (!m_DeviceParams.headlessDevice)
+        StreamlineIntegration::Get().SimStart(*this);
 #endif
 
     if (m_callbacks.beforeFrame) m_callbacks.beforeFrame(*this, m_FrameIndex);
@@ -696,7 +697,8 @@ void DeviceManager::RunMessageLoop()
     while(m_Window == nullptr || !glfwWindowShouldClose(m_Window))
     {
 #if DONUT_WITH_STREAMLINE
-        StreamlineIntegration::Get().SimStart(*this);
+        if (!m_DeviceParams.headlessDevice)
+            StreamlineIntegration::Get().SimStart(*this);
 #endif
         if (m_callbacks.beforeFrame) m_callbacks.beforeFrame(*this, m_FrameIndex);
         if (m_Window != nullptr)
@@ -757,7 +759,8 @@ bool DeviceManager::AnimateRenderPresent()
         if (m_callbacks.beforeAnimate) m_callbacks.beforeAnimate(*this, m_FrameIndex);
         Animate(elapsedTime, true);
 #if DONUT_WITH_STREAMLINE
-        StreamlineIntegration::Get().SimEnd(*this);
+        if (!m_DeviceParams.headlessDevice)
+            StreamlineIntegration::Get().SimEnd(*this);
 #endif
         if (m_callbacks.afterAnimate) m_callbacks.afterAnimate(*this, m_FrameIndex);
 
@@ -773,7 +776,8 @@ bool DeviceManager::AnimateRenderPresent()
                 uint32_t frameIndex = m_FrameIndex;
 
 #if DONUT_WITH_STREAMLINE
-                StreamlineIntegration::Get().RenderStart(*this);
+                if (!m_DeviceParams.headlessDevice)
+                    StreamlineIntegration::Get().RenderStart(*this);
 #endif
                 if (m_SkipRenderOnFirstFrame)
                 {
@@ -784,14 +788,18 @@ bool DeviceManager::AnimateRenderPresent()
                 Render();
                 if (m_callbacks.afterRender) m_callbacks.afterRender(*this, frameIndex);
 #if DONUT_WITH_STREAMLINE
-                StreamlineIntegration::Get().RenderEnd(*this);
-                StreamlineIntegration::Get().PresentStart(*this);
+                if (!m_DeviceParams.headlessDevice)
+                {
+                    StreamlineIntegration::Get().RenderEnd(*this);
+                    StreamlineIntegration::Get().PresentStart(*this);
+                }
 #endif
                 if (m_callbacks.beforePresent) m_callbacks.beforePresent(*this, frameIndex);
                 bool presentSuccess = Present();
                 if (m_callbacks.afterPresent) m_callbacks.afterPresent(*this, frameIndex);
 #if DONUT_WITH_STREAMLINE
-                StreamlineIntegration::Get().PresentEnd(*this);
+                if (!m_DeviceParams.headlessDevice)
+                    StreamlineIntegration::Get().PresentEnd(*this);
 #endif
                 if (!presentSuccess)
                 {

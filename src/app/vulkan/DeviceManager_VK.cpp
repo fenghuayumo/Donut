@@ -468,7 +468,7 @@ bool DeviceManager_VK::pickPhysicalDevice()
         uint32_t selectedIndex = 0;
 #if DONUT_WITH_STREAMLINE
         // Auto select best adapter for streamline features
-        if (adapterIndex < 0)
+        if (!m_DeviceParams.headlessDevice && adapterIndex < 0)
             selectedIndex = StreamlineIntegration::Get().FindBestAdapterVulkan(discreteGPUs);
 #endif
 
@@ -481,7 +481,7 @@ bool DeviceManager_VK::pickPhysicalDevice()
         uint32_t selectedIndex = 0;
 #if DONUT_WITH_STREAMLINE
         // Auto select best adapter for streamline features
-        if (adapterIndex < 0)
+        if (!m_DeviceParams.headlessDevice && adapterIndex < 0)
             selectedIndex = StreamlineIntegration::Get().FindBestAdapterVulkan(otherGPUs);
 #endif
         m_VulkanPhysicalDevice = otherGPUs[selectedIndex];
@@ -927,7 +927,8 @@ bool DeviceManager_VK::createSwapChain()
 bool DeviceManager_VK::CreateInstanceInternal()
 {
 #if DONUT_WITH_STREAMLINE
-    StreamlineIntegration::Get().InitializePreDevice(nvrhi::GraphicsAPI::VULKAN, m_DeviceParams.streamlineAppId, m_DeviceParams.checkStreamlineSignature, m_DeviceParams.enableStreamlineLog);
+    if (!m_DeviceParams.headlessDevice)
+        StreamlineIntegration::Get().InitializePreDevice(nvrhi::GraphicsAPI::VULKAN, m_DeviceParams.streamlineAppId, m_DeviceParams.checkStreamlineSignature, m_DeviceParams.enableStreamlineLog);
 #endif
 
     if (m_DeviceParams.enableDebugRuntime)
@@ -937,7 +938,8 @@ bool DeviceManager_VK::CreateInstanceInternal()
     }
 
 #if DONUT_WITH_STREAMLINE
-    m_DeviceParams.vulkanLibraryName = "sl.interposer.dll";
+    if (!m_DeviceParams.headlessDevice)
+        m_DeviceParams.vulkanLibraryName = "sl.interposer.dll";
 #endif
 
     m_dynamicLoader = std::make_unique<VulkanDynamicLoader>(m_DeviceParams.vulkanLibraryName);
@@ -1074,16 +1076,19 @@ bool DeviceManager_VK::CreateDevice()
     }
 
 #if DONUT_WITH_STREAMLINE
-    StreamlineIntegration::VulkanInfo vulkanInfo;
-    vulkanInfo.vkDevice = m_VulkanDevice;
-    vulkanInfo.vkInstance = m_VulkanInstance;
-    vulkanInfo.vkPhysicalDevice = m_VulkanPhysicalDevice;
-    vulkanInfo.computeQueueIndex = kComputeQueueIndex;
-    vulkanInfo.computeQueueFamily = m_ComputeQueueFamily;
-    vulkanInfo.graphicsQueueIndex = kGraphicsQueueIndex;
-    vulkanInfo.graphicsQueueFamily = m_GraphicsQueueFamily;
-    
-    StreamlineIntegration::Get().InitializeDeviceVK(m_NvrhiDevice, vulkanInfo);
+    if (!m_DeviceParams.headlessDevice)
+    {
+        StreamlineIntegration::VulkanInfo vulkanInfo;
+        vulkanInfo.vkDevice = m_VulkanDevice;
+        vulkanInfo.vkInstance = m_VulkanInstance;
+        vulkanInfo.vkPhysicalDevice = m_VulkanPhysicalDevice;
+        vulkanInfo.computeQueueIndex = kComputeQueueIndex;
+        vulkanInfo.computeQueueFamily = m_ComputeQueueFamily;
+        vulkanInfo.graphicsQueueIndex = kGraphicsQueueIndex;
+        vulkanInfo.graphicsQueueFamily = m_GraphicsQueueFamily;
+        
+        StreamlineIntegration::Get().InitializeDeviceVK(m_NvrhiDevice, vulkanInfo);
+    }
 #endif
 
     return true;
