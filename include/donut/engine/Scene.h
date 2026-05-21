@@ -77,6 +77,9 @@ namespace donut::engine
         bool m_SceneTransformsChanged = false;
         bool m_SceneStructureChanged = false;
 
+        // Parent directory of the loaded scene description (scene JSON or glTF file).
+        std::filesystem::path m_textureSearchDirectory;
+
         struct Resources; // Hide the implementation to avoid including <material_cb.h> and <bindless.h> here
         std::shared_ptr<Resources> m_Resources;
 

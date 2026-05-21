@@ -346,6 +346,7 @@ bool Scene::LoadWithThreadPool(const std::filesystem::path& sceneFileName, Threa
 
     if (sceneFileName.extension() == ".gltf" || sceneFileName.extension() == ".glb")
     {
+        m_textureSearchDirectory = sceneFileName.parent_path();
         ++g_LoadingStats.ObjectsTotal;
         m_Models.resize(1);
         LoadModelAsync(0, sceneFileName, threadPool);
@@ -393,6 +394,7 @@ bool Scene::LoadFromJsonString(const std::string& sceneJson, const std::filesyst
 
 bool Scene::LoadJsonDocument(Json::Value documentRoot, const std::filesystem::path& scenePath, ThreadPool* threadPool)
 {
+    m_textureSearchDirectory = scenePath;
     m_SceneGraph = std::make_shared<SceneGraph>();
 
     std::shared_ptr<SceneGraphNode> rootNode = std::make_shared<SceneGraphNode>();
@@ -446,7 +448,7 @@ bool Scene::LoadModelFile(
     ThreadPool* threadPool,
     SceneImportResult& result)
 {
-    return m_GltfImporter->Load(fileName, *m_TextureCache, g_LoadingStats, threadPool, result);
+    return m_GltfImporter->Load(fileName, *m_TextureCache, g_LoadingStats, threadPool, result, m_textureSearchDirectory);
 }
 
 void Scene::LoadModels(

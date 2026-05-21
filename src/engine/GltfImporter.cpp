@@ -643,7 +643,8 @@ bool GltfImporter::Load(
     TextureCache& textureCache,
     SceneLoadingStats& stats,
     ThreadPool* threadPool,
-    SceneImportResult& result) const
+    SceneImportResult& result,
+    const std::filesystem::path& sceneDirectory) const
 {
     // Set this to 'true' if you need to fix broken tangents in a model.
     // Patched buffers will be saved alongside the gltf file, named like "<scene-name>.buffer<N>.bin"
@@ -682,7 +683,7 @@ bool GltfImporter::Load(
 
     std::unordered_map<const cgltf_image*, std::shared_ptr<GltfInlineData>> inlineImageDataCache;
 
-    auto load_image_data = [this, &inlineImageDataCache, &fileName, objects, &vfsContext, &options]
+    auto load_image_data = [this, &inlineImageDataCache, &fileName, objects, &vfsContext, &options, sceneDirectory]
         (const cgltf_image* image, bool searchForDDS)
     {
         FilePathOrInlineData result;
@@ -783,17 +784,35 @@ bool GltfImporter::Load(
             cgltf_decode_uri(uri.data());
 
             // No inline data - read a file.
-            std::filesystem::path filePath = fileName.parent_path() / uri;
+            const std::filesystem::path gltfDirectory = fileName.parent_path();
+            const std::filesystem::path uriPath(uri);
+            auto resolveTexturePath = [&](const std::filesystem::path& candidate) -> std::filesystem::path
+            {
+                if (!candidate.empty() && std::filesystem::exists(candidate))
+                    return std::filesystem::absolute(candidate);
+
+                if (!sceneDirectory.empty() && !uriPath.is_absolute())
+                {
+                    const std::filesystem::path sceneCandidate = sceneDirectory / uriPath;
+                    if (std::filesystem::exists(sceneCandidate))
+                        return std::filesystem::absolute(sceneCandidate);
+                }
+
+                return std::filesystem::absolute(candidate);
+            };
+
+            std::filesystem::path filePath = resolveTexturePath(gltfDirectory / uriPath);
 
             // Try to replace the texture with DDS, if enabled.
             if (searchForDDS)
             {
                 std::filesystem::path filePathDDS = filePath;
-
                 filePathDDS.replace_extension(".dds");
 
-                if (m_fs->fileExists(filePathDDS))
+                if (m_fs->fileExists(filePathDDS) || std::filesystem::exists(filePathDDS))
                     filePath = filePathDDS;
+                else
+                    filePath = resolveTexturePath((gltfDirectory / uriPath).replace_extension(".dds"));
             }
 
             result.path = filePath.generic_string();

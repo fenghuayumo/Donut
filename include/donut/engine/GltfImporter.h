@@ -58,6 +58,7 @@ namespace donut::engine
             TextureCache& textureCache,
             SceneLoadingStats& stats,
             ThreadPool* threadPool,
-            SceneImportResult& result) const;
+            SceneImportResult& result,
+            const std::filesystem::path& sceneDirectory = std::filesystem::path()) const;
     };
 }
