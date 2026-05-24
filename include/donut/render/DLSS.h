@@ -72,6 +72,8 @@ namespace donut::render
 
             float exposureScale = 1.f;
             float sharpness = 0.f;
+            float motionVectorScaleX = 1.f;
+            float motionVectorScaleY = 1.f;
             bool resetHistory = false;
         };
 
@@ -85,7 +87,7 @@ namespace donut::render
 
         virtual void Init(const InitParameters& params) = 0;
 
-        virtual void Evaluate(
+        virtual bool Evaluate(
             nvrhi::ICommandList* commandList,
             const EvaluateParameters& params,
             const donut::engine::PlanarView& view) = 0;

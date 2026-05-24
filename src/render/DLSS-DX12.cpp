@@ -132,6 +132,7 @@ public:
             NVSDK_NGX_DLSS_Feature_Flags_IsHDR |
             NVSDK_NGX_DLSS_Feature_Flags_MVLowRes;
         inFeatureCreateFlags |= params.useLinearDepth ? 0 : NVSDK_NGX_DLSS_Feature_Flags_DepthInverted;
+        inFeatureCreateFlags |= params.useAutoExposure ? NVSDK_NGX_DLSS_Feature_Flags_AutoExposure : 0;
         m_parameters->Set(NVSDK_NGX_Parameter_DLSS_Feature_Create_Flags, inFeatureCreateFlags);
         m_parameters->Set(NVSDK_NGX_Parameter_Use_HW_Depth, params.useLinearDepth ? NVSDK_NGX_DLSS_Depth_Type_Linear : NVSDK_NGX_DLSS_Depth_Type_HW);
 
@@ -165,13 +166,13 @@ public:
         m_initParameters = params;
     }
 
-    void Evaluate(
+    bool Evaluate(
         nvrhi::ICommandList* commandList,
         const EvaluateParameters& params,
         const donut::engine::PlanarView& view) override
     {
         if (!m_dlssInitialized && !m_rayReconstructionInitialized)
-            return;
+            return false;
 
         commandList->beginMarker(m_rayReconstructionInitialized ? "DLSS_RR" : "DLSS");
 
@@ -202,6 +203,8 @@ public:
         m_parameters->Set(NVSDK_NGX_Parameter_Jitter_Offset_X, view.GetPixelOffset().x);
         m_parameters->Set(NVSDK_NGX_Parameter_Jitter_Offset_Y, view.GetPixelOffset().y);
         m_parameters->Set(NVSDK_NGX_Parameter_Reset, params.resetHistory);
+        m_parameters->Set(NVSDK_NGX_Parameter_MV_Scale_X, params.motionVectorScaleX);
+        m_parameters->Set(NVSDK_NGX_Parameter_MV_Scale_Y, params.motionVectorScaleY);
         m_parameters->Set(NVSDK_NGX_Parameter_DLSS_Render_Subrect_Dimensions_Width, view.GetViewExtent().width());
         m_parameters->Set(NVSDK_NGX_Parameter_DLSS_Render_Subrect_Dimensions_Height, view.GetViewExtent().height());
 
@@ -229,8 +232,10 @@ public:
         if (result != NVSDK_NGX_Result_Success)
         {
             log::warning("Failed to evaluate DLSS feature: 0x%08x", result);
-            return;
+            return false;
         }
+
+        return true;
     }
 
     ~DLSS_DX12() override

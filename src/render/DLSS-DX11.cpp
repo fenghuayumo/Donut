@@ -112,6 +112,7 @@ public:
             NVSDK_NGX_DLSS_Feature_Flags_IsHDR |
             NVSDK_NGX_DLSS_Feature_Flags_MVLowRes;
         dlssParams.InFeatureCreateFlags |= params.useLinearDepth ? 0 : NVSDK_NGX_DLSS_Feature_Flags_DepthInverted;
+        dlssParams.InFeatureCreateFlags |= params.useAutoExposure ? NVSDK_NGX_DLSS_Feature_Flags_AutoExposure : 0;
 
         NVSDK_NGX_Result result = NGX_D3D11_CREATE_DLSS_EXT(d3dcontext, &m_dlssHandle, m_parameters, &dlssParams);
 
@@ -126,13 +127,13 @@ public:
         m_initParameters = params;
     }
     
-    void Evaluate(
+    bool Evaluate(
         nvrhi::ICommandList* commandList,
         const EvaluateParameters& params,
         const donut::engine::PlanarView& view) override
     {
         if (!m_dlssInitialized)
-            return;
+            return false;
 
         commandList->beginMarker("DLSS");
 
@@ -163,6 +164,8 @@ public:
         evalParams.pInMotionVectors = params.motionVectorsTexture->getNativeObject(nvrhi::ObjectTypes::D3D11_Resource);
         evalParams.pInExposureTexture = useExposureBuffer ? m_exposureTexture->getNativeObject(nvrhi::ObjectTypes::D3D11_Resource) : nullptr;
         evalParams.InReset = params.resetHistory;
+        evalParams.InMVScaleX = params.motionVectorScaleX;
+        evalParams.InMVScaleY = params.motionVectorScaleY;
         evalParams.InJitterOffsetX = view.GetPixelOffset().x;
         evalParams.InJitterOffsetY = view.GetPixelOffset().y;
         evalParams.InRenderSubrectDimensions.Width = view.GetViewExtent().width();
@@ -177,8 +180,10 @@ public:
         if (result != NVSDK_NGX_Result_Success)
         {
             log::warning("Failed to evaluate DLSS feature: 0x%08x", result);
-            return;
+            return false;
         }
+
+        return true;
     }
 
     ~DLSS_DX11() override
